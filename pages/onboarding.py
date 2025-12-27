@@ -1,10 +1,10 @@
 """
-Майстер створення проекту
+Project creation wizard
 """
 
 import streamlit as st
 import time
-from database import create_project, create_keywords
+from database import create_project, create_keywords, add_official_asset
 from n8n.webhooks import n8n_generate_prompts, n8n_trigger_analysis
 
 def render_onboarding():
@@ -22,15 +22,21 @@ def render_onboarding():
 
             col1, col2 = st.columns(2)
             with col1:
-                brand = st.text_input("Назва бренду", value=st.session_state.get("temp_brand", ""))
-                industry = st.text_input("Галузь", value=st.session_state.get("temp_industry", ""))
+                brand = st.text_input("Назва бренду", placeholder="Monobank", value=st.session_state.get("temp_brand", ""))
+                industry = st.text_input("Галузь", placeholder="Фінтех", value=st.session_state.get("temp_industry", ""))
             with col2:
-                domain = st.text_input("Домен", value=st.session_state.get("temp_domain", ""))
-                region = st.selectbox("Регіон", ["Ukraine", "USA", "Europe", "Global"])
+                domain = st.text_input("Домен", placeholder="monobank.ua", value=st.session_state.get("temp_domain", ""))
+                region_options = ["Ukraine", "USA", "Europe", "Global"]
+                saved_region = st.session_state.get("temp_region", "Ukraine")
+                try:
+                    idx = region_options.index(saved_region)
+                except:
+                    idx = 0
+                region = st.selectbox("Регіон", options=region_options, index=idx)
 
-            products = st.text_area("Продукти/Послуги", value=st.session_state.get("temp_products", ""))
+            products = st.text_area("Продукти/Послуги", placeholder="Банківські картки, депозити", value=st.session_state.get("temp_products", ""))
 
-            if st.button("Згенерувати запити"):
+            if st.button("Згенерувати запити", type="primary"):
                 if brand and domain and industry and products:
                     st.session_state.update({
                         "temp_brand": brand,
@@ -40,14 +46,16 @@ def render_onboarding():
                         "temp_region": region
                     })
 
-                    with st.spinner("Генерація..."):
+                    with st.spinner("Генерація запитів..."):
                         prompts = n8n_generate_prompts(brand, domain, industry, products)
                         if prompts:
                             st.session_state["generated_prompts"] = prompts
                             st.session_state["onboarding_step"] = 2
                             st.rerun()
+                        else:
+                            st.error("Не вдалося згенерувати запити")
                 else:
-                    st.warning("Заповніть всі поля")
+                    st.warning("⚠️ Заповніть всі поля")
 
         # STEP 2: Review & Launch
         elif step == 2:
@@ -57,50 +65,83 @@ def render_onboarding():
 
             if not prompts:
                 st.warning("Список порожній")
-                if st.button("Назад"):
+                if st.button("← Назад"):
                     st.session_state["onboarding_step"] = 1
                     st.rerun()
                 return
 
+            st.markdown("Оберіть запити для аналізу:")
+            st.markdown("---")
+
             selected_kws = []
             for i, kw in enumerate(prompts):
-                if st.checkbox(kw, value=True, key=f"kw_{i}"):
-                    selected_kws.append(kw)
+                col_chk, col_num, col_text = st.columns([0.5, 0.5, 10])
+                with col_chk:
+                    if st.checkbox("", value=True, key=f"kw_check_{i}"):
+                        selected_kws.append(kw)
+                with col_num:
+                    st.markdown(f'<div class="green-number-small">{i+1}</div>', unsafe_allow_html=True)
+                with col_text:
+                    st.markdown(f"**{kw}**")
 
             st.divider()
-            st.markdown(f"**Готово:** {len(selected_kws)} запитів")
+            st.markdown(f"**Готово до запуску:** {len(selected_kws)} запитів")
 
-            if st.button("🚀 Створити проект", type="primary"):
-                if selected_kws:
-                    user_id = st.session_state["user"].id
-                    brand_name = st.session_state["temp_brand"]
-                    domain_name = st.session_state["temp_domain"]
-                    region_val = st.session_state.get("temp_region", "Ukraine")
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                if st.button("← Назад"):
+                    st.session_state["onboarding_step"] = 1
+                    st.rerun()
 
-                    # Create project
-                    new_project = create_project(user_id, brand_name, domain_name, region_val)
+            with col2:
+                if st.button("🚀 Створити проект та запустити", type="primary", use_container_width=True):
+                    if selected_kws:
+                        try:
+                            user_id = st.session_state["user"].id
+                            brand_name = st.session_state["temp_brand"]
+                            domain_name = st.session_state["temp_domain"]
+                            region_val = st.session_state.get("temp_region", "Ukraine")
 
-                    if new_project:
-                        st.session_state["current_project"] = new_project
+                            # Create project
+                            new_project = create_project(user_id, brand_name, domain_name, region_val)
 
-                        # Add keywords
-                        create_keywords(new_project["id"], selected_kws)
+                            if new_project:
+                                st.session_state["current_project"] = new_project
+                                proj_id = new_project["id"]
 
-                        # Trigger analysis
-                        progress = st.progress(0)
-                        for i, kw in enumerate(selected_kws):
-                            progress.progress((i + 1) / len(selected_kws))
-                            n8n_trigger_analysis(
-                                new_project["id"],
-                                [kw],
-                                brand_name,
-                                ["Google Gemini"]
-                            )
-                            time.sleep(0.5)
+                                # Add official domain
+                                clean_domain = domain_name.replace("https://", "").replace("http://", "").strip().rstrip("/")
+                                try:
+                                    add_official_asset(proj_id, clean_domain, "website")
+                                except:
+                                    pass
 
-                        st.success("Проект створено!")
-                        st.session_state["onboarding_step"] = 1
-                        time.sleep(1)
-                        st.rerun()
-                else:
-                    st.warning("Оберіть хоча б один запит")
+                                # Add keywords
+                                create_keywords(proj_id, selected_kws)
+
+                                # Trigger analysis
+                                progress = st.progress(0, text="Ініціалізація...")
+                                for i, kw in enumerate(selected_kws):
+                                    progress.progress((i + 1) / len(selected_kws), text=f"Аналіз: {kw[:30]}...")
+                                    n8n_trigger_analysis(
+                                        proj_id,
+                                        [kw],
+                                        brand_name,
+                                        ["Google Gemini"]
+                                    )
+                                    time.sleep(0.5)
+
+                                progress.progress(1.0, text="✅ Готово!")
+                                time.sleep(1)
+
+                                st.session_state["onboarding_step"] = 1
+                                st.session_state["current_page"] = "Дашборд"
+                                st.success("Проект створено успішно!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("Не вдалося створити проект")
+                        except Exception as e:
+                            st.error(f"Помилка: {e}")
+                    else:
+                        st.warning("Оберіть хоча б один запит")

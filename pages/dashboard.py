@@ -1,12 +1,12 @@
 """
-Головна сторінка дашборда
+Dashboard page
 """
 
 import streamlit as st
-import plotly.graph_objects as go
 import pandas as pd
-from database import db, get_scan_results, get_project_keywords
+from database import get_scan_results, get_project_keywords
 from components import render_metric_donut, render_status_badge
+from config import METRIC_TOOLTIPS
 
 def calculate_metrics(scan_results, brand_name: str):
     if not scan_results:
@@ -60,20 +60,20 @@ def render_dashboard():
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown("**Share of Voice**")
+        st.markdown(f"**Share of Voice** {METRIC_TOOLTIPS['sov']}")
         st.plotly_chart(render_metric_donut(metrics["sov"], "#8041F6"), use_container_width=True)
 
     with col2:
-        st.markdown("**Official Links**")
+        st.markdown(f"**Official Links** {METRIC_TOOLTIPS['official']}")
         st.plotly_chart(render_metric_donut(metrics["official"], "#00C896"), use_container_width=True)
 
     with col3:
-        st.markdown("**Sentiment**")
+        st.markdown(f"**Sentiment** {METRIC_TOOLTIPS['sentiment']}")
         sentiment_color = {"positive": "#00C896", "neutral": "#FFC107", "negative": "#FF5252"}.get(metrics["sentiment"].lower(), "#999")
         st.markdown(f'<div style="text-align: center; padding: 20px;"><span style="font-size: 24px; color: {sentiment_color}; font-weight: bold;">{metrics["sentiment"]}</span></div>', unsafe_allow_html=True)
 
     with col4:
-        st.markdown("**Avg Position**")
+        st.markdown(f"**Avg Position** {METRIC_TOOLTIPS['position']}")
         st.markdown(f'<div style="text-align: center; padding: 20px;"><span style="font-size: 32px; color: #333; font-weight: bold;">{metrics["position"]}</span></div>', unsafe_allow_html=True)
 
     st.divider()

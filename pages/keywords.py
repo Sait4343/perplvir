@@ -1,10 +1,10 @@
 """
-Сторінка управління запитами
+Keywords management page
 """
 
 import streamlit as st
 import pandas as pd
-from database import db, get_project_keywords, create_keywords
+from database import get_project_keywords, create_keywords
 from n8n.webhooks import n8n_trigger_analysis
 
 def render_keywords_page():
@@ -37,33 +37,38 @@ def render_keywords_page():
         return
 
     df = pd.DataFrame(keywords)
-    df = df[["id", "keyword_text", "created_at", "is_active"]]
-    df.columns = ["ID", "Запит", "Створено", "Активний"]
+    df["selected"] = False
 
-    # Selection
-    selected_rows = st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        selection_mode="multi-row",
-        on_select="rerun",
-        key="keywords_table"
-    )
+    st.markdown(f"**Всього запитів:** {len(keywords)}")
 
-    if selected_rows and len(selected_rows["selection"]["rows"]) > 0:
-        selected_kws = [keywords[i]["keyword_text"] for i in selected_rows["selection"]["rows"]]
-
-        st.markdown(f"**Обрано:** {len(selected_kws)} запитів")
-
-        col1, col2, col3 = st.columns(3)
+    # Simple table with checkboxes
+    for i, kw in enumerate(keywords):
+        col1, col2, col3 = st.columns([0.5, 8, 2])
         with col1:
-            if st.button("▶️ Запустити аналіз", type="primary"):
-                with st.spinner("Запуск..."):
-                    success = n8n_trigger_analysis(
-                        project["id"],
-                        selected_kws,
-                        project["brand_name"],
-                        ["Google Gemini"]
-                    )
-                    if success:
-                        st.success("Аналіз запущено!")
+            selected = st.checkbox("", key=f"kw_sel_{i}")
+        with col2:
+            st.markdown(f"**{kw['keyword_text']}**")
+        with col3:
+            st.caption(kw.get("created_at", "")[:10])
+
+        if selected:
+            if "selected_kws" not in st.session_state:
+                st.session_state["selected_kws"] = []
+            if kw['keyword_text'] not in st.session_state["selected_kws"]:
+                st.session_state["selected_kws"].append(kw['keyword_text'])
+
+    if "selected_kws" in st.session_state and st.session_state["selected_kws"]:
+        st.divider()
+        st.markdown(f"**Обрано:** {len(st.session_state['selected_kws'])}")
+
+        if st.button("▶️ Запустити аналіз", type="primary"):
+            with st.spinner("Запуск..."):
+                success = n8n_trigger_analysis(
+                    project["id"],
+                    st.session_state["selected_kws"],
+                    project["brand_name"],
+                    ["Google Gemini"]
+                )
+                if success:
+                    st.success("Аналіз запущено!")
+                    st.session_state["selected_kws"] = []

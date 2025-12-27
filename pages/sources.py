@@ -1,5 +1,5 @@
 """
-Сторінка джерел (офіційні ресурси)
+Official sources page
 """
 
 import streamlit as st

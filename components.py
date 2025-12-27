@@ -1,5 +1,5 @@
 """
-Переісні UI компоненти
+UI Components
 """
 
 import streamlit as st
@@ -25,9 +25,3 @@ def render_empty_state(icon: str, title: str, description: str, action_text: Opt
     st.markdown(f'<div style="text-align: center; padding: 60px 20px; background: white; border-radius: 10px; border: 1px solid #E0E0E0;"><div style="font-size: 64px; margin-bottom: 20px;">{icon}</div><h3 style="color: #333; margin-bottom: 10px;">{title}</h3><p style="color: #666; font-size: 14px;">{description}</p></div>', unsafe_allow_html=True)
     if action_text:
         st.button(action_text, use_container_width=True, type="primary")
-
-def render_sidebar_footer():
-    st.markdown("---")
-    st.caption("Потрібна допомога?")
-    st.markdown("📧 [hi@virshi.ai](mailto:hi@virshi.ai)")
-    st.caption("© 2025 Virshi AI")

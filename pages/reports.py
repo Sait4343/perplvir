@@ -1,5 +1,5 @@
 """
-Сторінка AI звітів та рекомендацій
+AI Reports page
 """
 
 import streamlit as st

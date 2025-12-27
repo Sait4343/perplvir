@@ -1,5 +1,5 @@
 """
-Сторінка аналізу конкурентів
+Competitors analysis page
 """
 
 import streamlit as st

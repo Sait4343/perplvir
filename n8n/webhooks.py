@@ -1,29 +1,18 @@
 """
-N8N Webhook інтеграції
+N8N Webhook Integration
 """
 
 import requests
 import streamlit as st
-from typing import List, Dict, Any
+from typing import List, Optional
 from datetime import datetime
-
-N8N_GEN_URL = "https://virshi.app.n8n.cloud/webhook/webhook/generate-prompts"
-N8N_ANALYZE_URL = "https://virshi.app.n8n.cloud/webhook/webhook/run-analysis_prod"
-N8N_RECO_URL = "https://virshi.app.n8n.cloud/webhook/recommendations"
-N8N_CHAT_WEBHOOK = "https://virshi.app.n8n.cloud/webhook/webhook/chat-bot"
-
-HEADERS = {"virshi-auth": "hi@virshi.ai2025"}
-
-MODEL_MAPPING = {
-    "Perplexity": "perplexity",
-    "OpenAI GPT": "gpt-4o",
-    "Google Gemini": "gemini-1.5-pro"
-}
+from config import N8N_GEN_URL, N8N_ANALYZE_URL, N8N_RECO_URL, AUTH_HEADER, MODEL_MAPPING
+from database import db
 
 def n8n_generate_prompts(brand: str, domain: str, industry: str, products: str) -> List[str]:
     payload = {"brand": brand, "domain": domain, "industry": industry, "products": products}
     try:
-        response = requests.post(N8N_GEN_URL, json=payload, headers=HEADERS, timeout=60)
+        response = requests.post(N8N_GEN_URL, json=payload, headers=AUTH_HEADER, timeout=60)
         if response.status_code == 200:
             data = response.json()
             if isinstance(data, list):
@@ -37,8 +26,6 @@ def n8n_generate_prompts(brand: str, domain: str, industry: str, products: str) 
         return []
 
 def n8n_trigger_analysis(project_id, keywords, brand_name, models=None) -> bool:
-    from database import db
-
     current_proj = st.session_state.get("current_project")
     status = current_proj.get("status", "trial") if current_proj else "trial"
 
@@ -54,7 +41,7 @@ def n8n_trigger_analysis(project_id, keywords, brand_name, models=None) -> bool:
     else:
         keywords_list = keywords
 
-    # Trial logic
+    # Trial logic - перевірка на повторне сканування
     if status == "trial":
         try:
             kw_resp = db.client.table("keywords").select("id, keyword_text").eq("project_id", project_id).in_("keyword_text", keywords_list).execute()
@@ -119,7 +106,7 @@ def n8n_trigger_analysis(project_id, keywords, brand_name, models=None) -> bool:
             }
 
             try:
-                response = requests.post(N8N_ANALYZE_URL, json=payload, headers=HEADERS, timeout=60)
+                response = requests.post(N8N_ANALYZE_URL, json=payload, headers=AUTH_HEADER, timeout=60)
                 if response.status_code == 200:
                     success_count += 1
                 else:
@@ -146,7 +133,7 @@ def trigger_ai_recommendation(user, project, category, context_text) -> str:
     }
 
     try:
-        response = requests.post(N8N_RECO_URL, json=payload, headers=HEADERS, timeout=120)
+        response = requests.post(N8N_RECO_URL, json=payload, headers=AUTH_HEADER, timeout=120)
         if response.status_code == 200:
             try:
                 data = response.json()
